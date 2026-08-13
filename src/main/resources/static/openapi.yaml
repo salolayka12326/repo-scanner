@@ -1,0 +1,100 @@
+openapi: 3.0.3
+info:
+  title: GitHub Repositories API
+  description: >
+    Exposes non-fork GitHub repositories of a given user, together with their
+    branches and the latest commit identifier of each branch.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /api/users/{username}/repositories:
+    get:
+      summary: List non-fork repositories of a GitHub user
+      operationId: getUserRepositories
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+          example: octocat
+      responses:
+        "200":
+          description: Repositories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RepositoryResponse"
+        "404":
+          description: The GitHub user does not exist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "406":
+          description: The requested media type is not supported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: The GitHub API returned an error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: An unexpected internal error occurred
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    RepositoryResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          example: spring-framework
+        branches:
+          type: array
+          items:
+            $ref: "#/components/schemas/BranchInfo"
+      required: [name, branches]
+
+    BranchInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          example: main
+        lastCommitSha:
+          type: string
+          example: 7fd1a60b01f91b314f59955a4e4d4e80d8edf11
+      required: [name, lastCommitSha]
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 404
+        error:
+          type: string
+          example: Not Found
+        message:
+          type: string
+          example: GitHub user 'octocat' was not found
+        path:
+          type: string
+          example: /api/users/octocat/repositories
+        timestamp:
+          type: string
+          format: date-time
+      required: [status, error, message, path, timestamp]
