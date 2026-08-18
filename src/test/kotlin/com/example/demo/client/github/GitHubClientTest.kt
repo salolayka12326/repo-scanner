@@ -1,7 +1,7 @@
-package com.example.demo.client
+package com.example.demo.client.github
 
-import com.example.demo.exception.GitHubUpstreamException
-import com.example.demo.exception.GitHubUserNotFoundException
+import com.example.demo.client.github.exception.GitHubUpstreamException
+import com.example.demo.client.github.exception.GitHubUserNotFoundException
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
@@ -85,6 +85,28 @@ class GitHubClientTest {
 
         StepVerifier.create(client.getBranches("octocat", "repo-a"))
             .expectNextMatches { it.name == "main" && it.commit.sha == "abc123" }
+            .verifyComplete()
+    }
+
+    @Test
+    fun `follows Link header pagination to collect every page`() {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setHeader("Link", "<${server.url("/users/octocat/repos?page=2")}>; rel=\"next\"")
+                .setBody("""[{"name":"repo-page-1","fork":false,"owner":{"login":"octocat"}}]""")
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""[{"name":"repo-page-2","fork":false,"owner":{"login":"octocat"}}]""")
+        )
+
+        StepVerifier.create(client.getUserRepositories("octocat"))
+            .expectNextMatches { it.name == "repo-page-1" }
+            .expectNextMatches { it.name == "repo-page-2" }
             .verifyComplete()
     }
 }

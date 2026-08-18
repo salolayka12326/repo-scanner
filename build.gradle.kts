@@ -27,6 +27,7 @@ dependencies {
 	implementation("io.swagger.core.v3:swagger-annotations-jakarta:2.2.25")
 	implementation("org.webjars:swagger-ui:5.17.14")
 	testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
+	testImplementation("org.springframework.boot:spring-boot-webtestclient")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
 	testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")

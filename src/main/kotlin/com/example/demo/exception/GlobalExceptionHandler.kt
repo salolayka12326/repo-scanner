@@ -14,19 +14,19 @@ import java.time.Instant
 @RestControllerAdvice
 class GlobalExceptionHandler {
 
-    @ExceptionHandler(GitHubUserNotFoundException::class)
+    @ExceptionHandler(RepositoryUserNotFoundException::class)
     fun handleUserNotFound(
-        ex: GitHubUserNotFoundException,
+        ex: RepositoryUserNotFoundException,
         exchange: ServerWebExchange
     ): Mono<ResponseEntity<ErrorResponse>> =
         buildResponse(HttpStatus.NOT_FOUND, ex.message ?: "Not found", exchange)
 
-    @ExceptionHandler(GitHubUpstreamException::class)
+    @ExceptionHandler(RepositoryProviderUnavailableException::class)
     fun handleUpstreamFailure(
-        ex: GitHubUpstreamException,
+        ex: RepositoryProviderUnavailableException,
         exchange: ServerWebExchange
     ): Mono<ResponseEntity<ErrorResponse>> =
-        buildResponse(HttpStatus.BAD_GATEWAY, ex.message ?: "Upstream GitHub API error", exchange)
+        buildResponse(HttpStatus.BAD_GATEWAY, ex.message ?: "Upstream provider error", exchange)
 
     @ExceptionHandler(NotAcceptableStatusException::class)
     fun handleNotAcceptable(

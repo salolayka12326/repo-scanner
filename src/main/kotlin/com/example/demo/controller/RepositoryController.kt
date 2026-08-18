@@ -1,7 +1,7 @@
 package com.example.demo.controller
 
 import com.example.demo.dto.RepositoryResponse
-import com.example.demo.service.GitHubRepositoryService
+import com.example.demo.service.RepositoryService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -14,7 +14,7 @@ import reactor.core.publisher.Mono
 
 @RestController
 @RequestMapping("/api/users/{username}/repositories", produces = [MediaType.APPLICATION_JSON_VALUE])
-class RepositoryController(private val gitHubRepositoryService: GitHubRepositoryService) {
+class RepositoryController(private val repositoryService: RepositoryService) {
 
     @Operation(
         summary = "List non-fork repositories of a GitHub user",
@@ -30,5 +30,5 @@ class RepositoryController(private val gitHubRepositoryService: GitHubRepository
     )
     @GetMapping
     fun getRepositories(@PathVariable username: String): Mono<List<RepositoryResponse>> =
-        gitHubRepositoryService.getNonForkRepositoriesWithBranches(username).collectList()
+        repositoryService.getNonForkRepositoriesWithBranches(username).collectList()
 }

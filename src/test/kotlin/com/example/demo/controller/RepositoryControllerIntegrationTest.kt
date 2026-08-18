@@ -1,36 +1,44 @@
 package com.example.demo.controller
 
-import com.example.demo.client.GitHubClient
-import com.example.demo.client.dto.GitHubBranchDto
-import com.example.demo.client.dto.GitHubRepoDto
-import com.example.demo.exception.GitHubUpstreamException
-import com.example.demo.exception.GitHubUserNotFoundException
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
-import org.springframework.test.context.bean.override.mockito.MockitoBean
+import org.springframework.test.context.DynamicPropertyRegistry
+import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.reactive.server.WebTestClient
-import reactor.core.publisher.Flux
 
+/**
+ * Exercises the full stack (controller -> service -> provider -> GitHub client) over real HTTP,
+ * stubbing only the GitHub API itself via [MockWebServer]. No Spring bean is mocked, so the
+ * application context stays identical - and cached - across every test in the suite, unlike the
+ * previous approach which used `@MockitoBean` and forced a fresh context per test class.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 class RepositoryControllerIntegrationTest {
 
     @Autowired
     private lateinit var webTestClient: WebTestClient
 
-    @MockitoBean
-    private lateinit var gitHubClient: GitHubClient
-
     @Test
     fun `returns non-fork repositories with branches as JSON`() {
-        whenever(gitHubClient.getUserRepositories("octocat")).thenReturn(
-            Flux.just(GitHubRepoDto(name = "hello-world", fork = false, owner = GitHubRepoDto.Owner("octocat")))
+        gitHubServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""[{"name":"hello-world","fork":false,"owner":{"login":"octocat"}}]""")
         )
-        whenever(gitHubClient.getBranches("octocat", "hello-world")).thenReturn(
-            Flux.just(GitHubBranchDto(name = "main", commit = GitHubBranchDto.CommitRef(sha = "sha-1")))
+        gitHubServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""[{"name":"main","commit":{"sha":"sha-1"}}]""")
         )
 
         webTestClient.get()
@@ -46,8 +54,7 @@ class RepositoryControllerIntegrationTest {
 
     @Test
     fun `returns 404 with consistent error body when GitHub user does not exist`() {
-        whenever(gitHubClient.getUserRepositories("missing-user"))
-            .thenReturn(Flux.error(GitHubUserNotFoundException("missing-user")))
+        gitHubServer.enqueue(MockResponse().setResponseCode(404).setBody("""{"message":"Not Found"}"""))
 
         webTestClient.get()
             .uri("/api/users/missing-user/repositories")
@@ -61,8 +68,7 @@ class RepositoryControllerIntegrationTest {
 
     @Test
     fun `returns 502 when GitHub API fails`() {
-        whenever(gitHubClient.getUserRepositories("octocat"))
-            .thenReturn(Flux.error(GitHubUpstreamException("GitHub is down")))
+        gitHubServer.enqueue(MockResponse().setResponseCode(503).setBody("""{"message":"Service Unavailable"}"""))
 
         webTestClient.get()
             .uri("/api/users/octocat/repositories")
@@ -74,12 +80,29 @@ class RepositoryControllerIntegrationTest {
 
     @Test
     fun `returns 406 when client requests an unsupported media type`() {
-        whenever(gitHubClient.getUserRepositories("octocat")).thenReturn(Flux.empty())
-
+        // Rejected by content negotiation before the controller runs, so GitHub is never called.
         webTestClient.get()
             .uri("/api/users/octocat/repositories")
             .accept(MediaType.APPLICATION_XML)
             .exchange()
             .expectStatus().isEqualTo(HttpStatus.NOT_ACCEPTABLE)
+    }
+
+    companion object {
+        // Started eagerly (not in @BeforeAll) because @DynamicPropertySource is evaluated
+        // while the Spring context is being prepared, which happens before @BeforeAll runs.
+        private val gitHubServer = MockWebServer().apply { start() }
+
+        @JvmStatic
+        @DynamicPropertySource
+        fun githubProperties(registry: DynamicPropertyRegistry) {
+            registry.add("github.api.base-url") { gitHubServer.url("/").toString() }
+        }
+
+        @JvmStatic
+        @AfterAll
+        fun stopServer() {
+            gitHubServer.shutdown()
+        }
     }
 }
